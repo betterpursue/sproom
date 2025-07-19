@@ -1,15 +1,15 @@
 name: Node.js CI
-on: # ´¥·¢?×÷Á÷µÄÊÂ¼ş
+on: # è§¦å‘å·¥ä½œæµçš„äº‹ä»¶
 push:
 branches: [ "main" ]
-jobs: # ¶¨Òå?×÷Á÷ÖĞµÄÈÎÎñ£¨?¸ö?×÷Á÷¿É°üº¬¶à¸öÈÎÎñ£©
+jobs: # å®šä¹‰å·¥ä½œæµä¸­çš„ä»»åŠ¡ï¼ˆ?ä¸ª?ä½œæµå¯åŒ…å«å¤šä¸ªä»»åŠ¡ï¼‰
 build:
-runs-on: ubuntu-latest # Ö¸¶¨ÔË?»·¾³
+runs-on: ubuntu-latest # æŒ‡å®šè¿è¡Œç¯å¢ƒ
 strategy:
-matrix: # ¶¨Òå¾ØÕó²ßÂÔ£¬²¢?ÔË?¶à»·¾³²âÊÔ
+matrix: # å®šä¹‰çŸ©é˜µç­–ç•¥ï¼Œå¹¶è¡Œè¿è¡Œå¤šç¯å¢ƒæµ‹è¯•
 node-version: [20.x, 22.x]
-steps: # ¾ßÌåÖ´?²½Öè
-- uses: actions/checkout@v4 # À­È¡´úÂë
+steps: # å…·ä½“æ‰§è¡Œæ­¥éª¤
+- uses: actions/checkout@v4 # æ‹‰å–ä»£ç 
 - name: Use Node.js ${{ matrix.node-version }}
 uses: actions/setup-node@v4
 with:
