@@ -1,9 +1,20 @@
-name: Test CI
-on: [push]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run a one-line script
-        run: echo Hello, world!
+name: Node.js CI
+on: # 触发?作流的事件
+push:
+branches: [ "main" ]
+jobs: # 定义?作流中的任务（?个?作流可包含多个任务）
+build:
+runs-on: ubuntu-latest # 指定运?环境
+strategy:
+matrix: # 定义矩阵策略，并?运?多环境测试
+node-version: [20.x, 22.x]
+steps: # 具体执?步骤
+- uses: actions/checkout@v4 # 拉取代码
+- name: Use Node.js ${{ matrix.node-version }}
+uses: actions/setup-node@v4
+with:
+node-version: ${{ matrix.node-version }}
+cache: 'npm'
+- run: npm ci
+- run: npm run test
+- run: npm run build --if-present
