@@ -2,7 +2,7 @@ name: Node.js CI
 on: # 触发工作流的事件
 push:
 branches: [ "main" ]
-jobs: # 定义工作流中的任务（?个?作流可包含多个任务）
+jobs: # 定义工作流中的任务（一个工作流可包含多个任务）
 build:
 runs-on: ubuntu-latest # 指定运行环境
 strategy:
