@@ -1,20 +1,31 @@
 name: Node.js CI
+
 on: # 触发工作流的事件
-push:
-branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
 jobs: # 定义工作流中的任务（一个工作流可包含多个任务）
-build:
-runs-on: ubuntu-latest # 指定运行环境
-strategy:
-matrix: # 定义矩阵策略，并行运行多环境测试
-node-version: [20.x, 22.x]
-steps: # 具体执行步骤
-- uses: actions/checkout@v4 # 拉取代码
-- name: Use Node.js ${{ matrix.node-version }}
-uses: actions/setup-node@v4
-with:
-node-version: ${{ matrix.node-version }}
-cache: 'npm'
-- run: npm ci
-- run: npm run test
-- run: npm run build --if-present
+  build:
+    runs-on: ubuntu-latest # 指定运行环境
+    strategy:
+      matrix: # 定义矩阵策略，并行运行多环境测试
+        node-version: [20.x, 22.x]
+
+    steps: # 具体执行步骤
+      - uses: actions/checkout@v4 # 拉取代码
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm run test
+      
+      - name: Build
+        run: npm run build --if-present
+
