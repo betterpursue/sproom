@@ -1,7 +1,9 @@
+import AdminAuth from './middleware/adminAuth';
 import { createBrowserRouter } from 'react-router-dom'
 import LoginForm from './pages/auth/LoginForm'
 import RegisterForm from './pages/auth/RegisterForm'
-
+import ActivityManagement from './pages/admin/ActivityManagement'
+import ActivityDetail from './pages/admin/ActivityDetail';
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -15,5 +17,14 @@ export const router = createBrowserRouter([
     path: '/register',
     element: <RegisterForm />
   },
-  // 其他路由配置可以在这里添加
+    {
+    path: '/activity-management',
+    element: <ActivityManagement />,
+    loader: AdminAuth
+  }
+  ,
+  {
+    path: '/activities/:id',
+    element: <ActivityDetail />
+  }
 ])

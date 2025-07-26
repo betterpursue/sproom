@@ -8,7 +8,8 @@ export default function LoginForm() {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    rememberMe: false
+    rememberMe: false,
+    role: 'user' // 新增角色选择，默认普通用户
   })
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -36,6 +37,9 @@ export default function LoginForm() {
       console.log('登录信息：', formData)
       // 模拟登录延迟
       await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // 存储角色信息
+      localStorage.setItem('userRole', formData.role)
       
       if (formData.rememberMe) {
         localStorage.setItem('rememberedUser', formData.username)
@@ -117,6 +121,21 @@ export default function LoginForm() {
                   <EyeIcon className="h-5 w-5 text-gray-400" />
                 )}
               </button>
+            </div>
+
+            {/* 新增角色选择 */}
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700">角色</label>
+              <select
+                id="role"
+                name="role"
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                value={formData.role}
+                onChange={handleInputChange}
+              >
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
+              </select>
             </div>
           </div>
 
