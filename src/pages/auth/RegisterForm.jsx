@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { useNavigate } from 'react-router-dom'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import bgImage from '/src/assets/background.png'
@@ -40,17 +42,17 @@ export default function RegisterForm() {
   
       // 表单验证
       if (!formData.username || !formData.password || !formData.confirmPassword) {
-        setError('请填写所有字段')
+        toast.error('请填写所有字段', { autoClose: 3000 })
         return
       }
   
       if (formData.password !== formData.confirmPassword) {
-        setError('密码不一致')
+        toast.error('密码不一致', { autoClose: 3000 })
         return
       }
   
       if (!validatePassword(formData.password)) {
-        setError('密码必须至少8位且包含字母和数字')
+        toast.error('密码必须至少8位且包含字母和数字', { autoClose: 3000 })
         return
       }
   
@@ -60,17 +62,27 @@ export default function RegisterForm() {
         console.log('注册信息：', formData)
         await new Promise(resolve => setTimeout(resolve, 1500))
 
-        // 存储角色信息
+        // 获取现有用户或创建新对象
+        const existingUsers = JSON.parse(localStorage.getItem('users') || '{}');
+        // 添加新用户
+        existingUsers[formData.username] = {
+          password: formData.password,
+          role: formData.role
+        };
+        // 保存用户数据到localStorage
+        localStorage.setItem('users', JSON.stringify(existingUsers));
+
+        // 存储当前用户角色
         localStorage.setItem('userRole', formData.role)
 
-        // 模拟注册成功
-        setSuccess('注册成功，即将跳转到登录页面...')
+        // 注册成功提示
+        toast.success('注册成功，即将跳转到登录页面...', { autoClose: 3000 })
         // 2秒后跳转到登录页
         setTimeout(() => {
           navigate('/login')
         }, 2000)
       } catch {
-        setError('注册失败，请重试')
+        toast.error('注册失败，请重试', { autoClose: 3000 })
       } finally {
         setIsLoading(false)
       }
@@ -189,17 +201,7 @@ export default function RegisterForm() {
               </div>
             </div>
 
-            {error && (
-              <div className="text-red-500 text-sm text-center animate-fade-in">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="text-green-500 text-sm text-center animate-fade-in">
-                {success}
-              </div>
-            )}
+            <ToastContainer />
 
             <div className="space-y-3">
               <button

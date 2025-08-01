@@ -4,7 +4,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const CreateActivity = ({ onActivityCreate }) => {
-  const [newActivity, setNewActivity] = useState({ name: '', location: '', startTime: '', endTime: '', description: '', image: '' });
+  const [newActivity, setNewActivity] = useState({ name: '', location: '', startTime: '', endTime: '', description: '', image: '', capacity: '' });
 
   const handleCreateActivity = async () => {
     try {
@@ -68,6 +68,14 @@ const CreateActivity = ({ onActivityCreate }) => {
           value={newActivity.image}
           onChange={(e) => setNewActivity({ ...newActivity, image: e.target.value })}
           placeholder="输入活动图URL"
+          className="p-3 rounded-lg border border-gray-300 bg-white/90 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="number"
+          value={newActivity.capacity}
+          onChange={(e) => setNewActivity({ ...newActivity, capacity: parseInt(e.target.value) || '' })}
+          placeholder="输入活动人数上限"
+          min="1"
           className="p-3 rounded-lg border border-gray-300 bg-white/90 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button

@@ -2,15 +2,16 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import bgImage from '/src/assets/background.png'  // 根据你的实际图片名称调整
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function LoginForm() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    rememberMe: false,
-    role: 'user' // 新增角色选择，默认普通用户
-  })
+    rememberMe: false
+  });
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -25,35 +26,57 @@ export default function LoginForm() {
   }
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!formData.username || !formData.password) {
-      setError('请填写用户名和密码')
-      return
+      setError('请填写用户名和密码');
+      toast.error('请填写用户名和密码', { autoClose: 3000 });
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      // TODO: 这里添加实际的登录逻辑
-      console.log('登录信息：', formData)
-      // 模拟登录延迟
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // 存储角色信息
-      localStorage.setItem('userRole', formData.role)
-      
-      if (formData.rememberMe) {
-        localStorage.setItem('rememberedUser', formData.username)
-      } else {
-        localStorage.removeItem('rememberedUser')
-      }
-      
-    } catch {
-      setError('登录失败，请重试')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+      // 获取用户数据
+      const users = JSON.parse(localStorage.getItem('users') || '{}');
+      const user = users[formData.username];
 
+      if (user && user.password === formData.password) {
+        // 登录成功
+        // 存储用户信息
+        const userInfo = {
+          username: formData.username,
+          role: user.role
+        };
+        localStorage.setItem('currentUser', JSON.stringify(userInfo));
+        localStorage.setItem('userRole', user.role);
+        
+        if (formData.rememberMe) {
+          localStorage.setItem('rememberedUser', formData.username);
+        } else {
+          localStorage.removeItem('rememberedUser');
+        }
+        
+        // 登录成功提示
+        toast.success('登录成功！', { autoClose: 3000 });
+        
+        // 3秒后根据角色跳转到不同页面
+        setTimeout(() => {
+          if (user.role === 'admin') {
+            navigate('/activity-management');
+          } else {
+            navigate('/activity-registration');
+          }
+        }, 3000);
+      } else {
+        // 登录失败
+        setError('用户名或密码不正确');
+      }
+    } catch {
+      setError('登录失败，请重试');
+      toast.error('登录失败，请重试', { autoClose: 3000 });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const handleRegister = () => {
     navigate('/register')
   }
@@ -122,21 +145,6 @@ export default function LoginForm() {
                 )}
               </button>
             </div>
-
-            {/* 新增角色选择 */}
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">角色</label>
-              <select
-                id="role"
-                name="role"
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                value={formData.role}
-                onChange={handleInputChange}
-              >
-                <option value="user">普通用户</option>
-                <option value="admin">管理员</option>
-              </select>
-            </div>
           </div>
 
           <div className="flex items-center justify-between">
@@ -191,6 +199,7 @@ export default function LoginForm() {
           </div>
         </form>
       </div>
+      <ToastContainer position="top-center" />
     </div>
-  )
+  );
 }

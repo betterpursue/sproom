@@ -82,6 +82,22 @@ const ActivityManagement = () => {
     toast.success('活动已成功删除');
   };
 
+  const handleLogout = () => {
+    // 显示确认弹窗
+    if (window.confirm('确定要退出登录吗？')) {
+      // 显示退出成功提示
+      toast.success('退出成功！');
+      
+      // 延迟一段时间后执行退出操作
+      setTimeout(() => {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('rememberedUser');
+        navigate('/login');
+      }, 1500); // 延迟1.5秒
+    }
+  };
+
   return (
     <div 
       className="min-h-screen flex items-center justify-center relative"
@@ -97,6 +113,16 @@ const ActivityManagement = () => {
       
       {/* 管理面板容器 */}
       <div className="max-w-4xl w-full p-8 bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl transform transition-all hover:scale-102 relative z-10">
+        {/* 退出登录按钮 */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+          >
+            退出登录
+          </button>
+        </div>
+        
         <div className="text-center mb-8">
           <h1 className="text-4xl font-extrabold text-black mb-2">活动管理系统</h1>
           <p className="text-lg text-gray-600">管理所有活动的创建、编辑和删除</p>
