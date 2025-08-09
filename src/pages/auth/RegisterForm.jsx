@@ -4,14 +4,17 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useNavigate } from 'react-router-dom'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import bgImage from '/src/assets/background.png'
+import { userApi } from '../../services/api'
 
 export default function RegisterForm() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     username: '',
+    email: '',
     password: '',
     confirmPassword: '',
-    role: 'user' // 新增角色选择，默认普通用户
+    realName: '',
+    phone: ''
     })
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -25,6 +28,18 @@ export default function RegisterForm() {
       const hasLetter = /[a-zA-Z]/.test(password)
       const hasNumber = /[0-9]/.test(password)
       return minLength && hasLetter && hasNumber
+    }
+
+    const validateEmail = (email) => {
+      // 验证邮箱格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      return emailRegex.test(email)
+    }
+
+    const validatePhone = (phone) => {
+      // 验证电话号码格式（中国手机号11位）
+      const phoneRegex = /^1[3-9]\d{9}$/
+      return phoneRegex.test(phone)
     }
 
     const handleInputChange = (e) => {
@@ -41,7 +56,7 @@ export default function RegisterForm() {
       e.preventDefault()
   
       // 表单验证
-      if (!formData.username || !formData.password || !formData.confirmPassword) {
+      if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword || !formData.realName || !formData.phone) {
         toast.error('请填写所有字段', { autoClose: 3000 })
         return
       }
@@ -55,25 +70,27 @@ export default function RegisterForm() {
         toast.error('密码必须至少8位且包含字母和数字', { autoClose: 3000 })
         return
       }
+
+      if (!validateEmail(formData.email)) {
+        toast.error('请输入有效的邮箱地址', { autoClose: 3000 })
+        return
+      }
+
+      if (!validatePhone(formData.phone)) {
+        toast.error('请输入有效的11位手机号码', { autoClose: 3000 })
+        return
+      }
   
       setIsLoading(true)
       try {
-        // 模拟注册请求
-        console.log('注册信息：', formData)
-        await new Promise(resolve => setTimeout(resolve, 1500))
-
-        // 获取现有用户或创建新对象
-        const existingUsers = JSON.parse(localStorage.getItem('users') || '{}');
-        // 添加新用户
-        existingUsers[formData.username] = {
-          password: formData.password,
-          role: formData.role
-        };
-        // 保存用户数据到localStorage
-        localStorage.setItem('users', JSON.stringify(existingUsers));
-
-        // 存储当前用户角色
-        localStorage.setItem('userRole', formData.role)
+        // 使用后端API注册，对密码进行trim处理
+        await userApi.register({
+          username: formData.username.trim(),
+          email: formData.email.trim(),
+          password: formData.password.trim(),
+          realName: formData.realName.trim(),
+          phone: formData.phone.trim()
+        })
 
         // 注册成功提示
         toast.success('注册成功，即将跳转到登录页面...', { autoClose: 3000 })
@@ -81,8 +98,10 @@ export default function RegisterForm() {
         setTimeout(() => {
           navigate('/login')
         }, 2000)
-      } catch {
-        toast.error('注册失败，请重试', { autoClose: 3000 })
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || '注册失败，请重试'
+        setError(errorMessage)
+        toast.error(errorMessage, { autoClose: 3000 })
       } finally {
         setIsLoading(false)
       }
@@ -128,6 +147,48 @@ export default function RegisterForm() {
                   className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                   placeholder="用户名"
                   value={formData.username}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="email" className="sr-only">邮箱</label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  placeholder="邮箱地址"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="realName" className="sr-only">真实姓名</label>
+                <input
+                  id="realName"
+                  name="realName"
+                  type="text"
+                  required
+                  className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  placeholder="真实姓名"
+                  value={formData.realName}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="phone" className="sr-only">电话号码</label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  required
+                  className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  placeholder="电话号码"
+                  value={formData.phone}
                   onChange={handleInputChange}
                 />
               </div>
@@ -183,23 +244,7 @@ export default function RegisterForm() {
               </div>
             </div>
 
-            <div className="relative">
 
-              {/* 新增角色选择 */}
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700">角色</label>
-                <select
-                  id="role"
-                  name="role"
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                >
-                  <option value="user">普通用户</option>
-                  <option value="admin">管理员</option>
-                </select>
-              </div>
-            </div>
 
             <ToastContainer />
 

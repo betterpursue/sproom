@@ -4,13 +4,76 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const CreateActivity = ({ onActivityCreate }) => {
-  const [newActivity, setNewActivity] = useState({ name: '', location: '', startTime: '', endTime: '', description: '', image: '', capacity: '' });
+  const [newActivity, setNewActivity] = useState({ 
+    name: '', 
+    location: '', 
+    startTime: '', 
+    endTime: '', 
+    description: '', 
+    image: '', 
+    capacity: '',
+    type: 'basketball' // 默认类型
+  });
 
   const handleCreateActivity = async () => {
     try {
-      const newActivityData = { ...newActivity, id: uuidv4() };
+      // 验证必填字段
+      if (!newActivity.name) {
+        toast.error('请输入活动名称');
+        return;
+      }
+      if (!newActivity.startTime) {
+        toast.error('请选择开始时间');
+        return;
+      }
+      if (!newActivity.endTime) {
+        toast.error('请选择结束时间');
+        return;
+      }
+      if (!newActivity.description || newActivity.description.trim().length < 10) {
+        toast.error('活动描述必须至少10个字符');
+        return;
+      }
+      if (!newActivity.type) {
+        toast.error('请选择活动类型');
+        return;
+      }
+
+      // 时间验证：确保开始时间晚于当前时间（增加1分钟缓冲）
+      const now = new Date();
+      const nowWithBuffer = new Date(now.getTime() + 60000); // 当前时间+1分钟
+      const selectedStartTime = new Date(newActivity.startTime);
+      const selectedEndTime = new Date(newActivity.endTime);
+
+      console.log('当前时间:', now.toLocaleString());
+      console.log('缓冲时间:', nowWithBuffer.toLocaleString());
+      console.log('选择的开始时间:', selectedStartTime.toLocaleString());
+
+      if (selectedStartTime <= nowWithBuffer) {
+        toast.error(`开始时间必须晚于当前时间 ${nowWithBuffer.toLocaleString()}，请选择更晚的时间`);
+        return;
+      }
+
+      if (selectedEndTime <= selectedStartTime) {
+        toast.error('结束时间必须晚于开始时间');
+        return;
+      }
+
+      // 字段映射：将前端字段映射为后端要求的字段
+      // 确保时间格式为ISO字符串，便于后端处理
+      const newActivityData = {
+        title: newActivity.name, // 前端使用name，后端要求title
+        location: newActivity.location,
+        startTime: selectedStartTime.toISOString(),
+        endTime: selectedEndTime.toISOString(),
+        description: newActivity.description,
+        imageUrl: newActivity.image, // 前端使用image，后端要求imageUrl
+        maxParticipants: newActivity.capacity || null,
+        type: newActivity.type
+      };
+      
       onActivityCreate(newActivityData);
-      setNewActivity({ name: '', location: '', time: '', description: '', image: '' });
+      setNewActivity({ name: '', location: '', startTime: '', endTime: '', description: '', image: '', capacity: '', type: 'basketball' });
       toast.success('创建成功', {
         position: "top-center",
         autoClose: 3000,
@@ -36,6 +99,21 @@ const CreateActivity = ({ onActivityCreate }) => {
           placeholder="输入新活动名称"
           className="p-3 rounded-lg border border-gray-300 bg-white/90 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        <select
+          value={newActivity.type}
+          onChange={(e) => setNewActivity({ ...newActivity, type: e.target.value })}
+          className="p-3 rounded-lg border border-gray-300 bg-white/90 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">选择活动类型</option>
+          <option value="basketball">篮球</option>
+          <option value="football">足球</option>
+          <option value="badminton">羽毛球</option>
+          <option value="tennis">网球</option>
+          <option value="swimming">游泳</option>
+          <option value="yoga">瑜伽</option>
+          <option value="fitness">健身</option>
+          <option value="other">其他</option>
+        </select>
         <input
           type="text"
           value={newActivity.location}

@@ -5,6 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import activityDetailBg from '/src/assets/activityDetail.png';
 import BackButton from '/src/components/BackButton';
 import ActivityComment from '/src/components/ActivityComment';
+import { activityApi, registrationApi, userApi } from '/src/services/api';
 
 // 添加全局样式
 const GlobalStyle = () => {
@@ -30,6 +31,22 @@ const ActivityDetail = () => {
     const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString('zh-CN', options);
   };
+
+  const formatDateTimeForInput = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      // 处理时区问题，确保本地时间显示
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (error) {
+      return '';
+    }
+  };
   const { id } = useParams();
   const [activity, setActivity] = useState(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -37,39 +54,23 @@ const ActivityDetail = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const navigate = useNavigate();
-  let currentUser = null;
-  try {
-    const userData = localStorage.getItem('currentUser');
-    if (userData) {
-      currentUser = JSON.parse(userData);
-    }
-  } catch (error) {
-    console.error('Failed to parse currentUser:', error);
-  }
+  const [currentUser, setCurrentUser] = useState(null);
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const user = await userApi.getCurrentUser();
+        setCurrentUser(user);
+      } catch (error) {
+        console.error('获取用户信息失败:', error);
+        setCurrentUser(null);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
   const isAdmin = currentUser && currentUser.role === 'admin';
-  const userRole = localStorage.getItem('userRole');
+  const userRole = currentUser?.role;
 
-  const handleDeleteComment = (commentId) => {
-    if (!window.confirm('确定要删除这条评论吗？')) {
-      return;
-    }
 
-    const commentsKey = `comments_${id}`;
-    const updatedComments = comments.filter(comment => comment.id !== commentId);
-    localStorage.setItem(commentsKey, JSON.stringify(updatedComments));
-    setComments(updatedComments);
-
-    toast.success('评论删除成功！', {
-      position: "top-center",
-      autoClose: 3000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      progress: undefined,
-      theme: "light",
-    });
-  };
 
   const handleEditClick = () => {
     setIsEditing(true);
@@ -79,62 +80,94 @@ const ActivityDetail = () => {
     setIsEditing(false);
     // 重置表单为当前活动数据
     setEditForm({
-      name: activity.name,
+      title: activity.title || activity.name,
       description: activity.description,
       startTime: activity.startTime,
       endTime: activity.endTime,
       location: activity.location,
-      capacity: activity.capacity || '',
-      image: activity.image || ''
+      capacity: activity.maxParticipants || activity.capacity || '',
+      image: activity.imageUrl || activity.image || '',
+      status: activity.status || 'open'
     });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     try {
-      const activities = JSON.parse(localStorage.getItem('activities') || '[]');
-      const updatedActivities = activities.map(act => {
-        if (act.id === id) {
-          return {
-            ...act,
-            name: editForm.name,
-            description: editForm.description,
-            startTime: editForm.startTime,
-            endTime: editForm.endTime,
-            location: editForm.location,
-            capacity: editForm.capacity ? parseInt(editForm.capacity) : null,
-            image: editForm.image
-          };
-        }
-        return act;
+      // 验证时间数据
+      if (!editForm.startTime || !editForm.endTime) {
+        toast.error('请设置活动的开始时间和结束时间');
+        return;
+      }
+
+      const startTime = new Date(editForm.startTime);
+      const endTime = new Date(editForm.endTime);
+      const now = new Date();
+
+      // 验证时间逻辑 - 允许当前时间后1分钟开始
+      console.log('时间验证:', {
+        当前时间: now.toISOString(),
+        开始时间: startTime.toISOString(),
+        结束时间: endTime.toISOString(),
+        时间差: startTime.getTime() - now.getTime()
       });
       
-      localStorage.setItem('activities', JSON.stringify(updatedActivities));
+      if (startTime <= new Date(now.getTime() - 60000)) {
+        toast.error(`开始时间必须晚于当前时间 (${now.toLocaleString()})`);
+        return;
+      }
+
+      if (endTime <= startTime) {
+        toast.error('结束时间必须晚于开始时间');
+        return;
+      }
+
+      // 准备更新数据
+      const updateData = {
+        title: editForm.title,
+        description: editForm.description,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        location: editForm.location,
+        maxParticipants: editForm.capacity ? parseInt(editForm.capacity) : null,
+        imageUrl: editForm.image,
+        status: editForm.status
+      };
+
+      // 调用API更新活动
+      const response = await activityApi.updateActivity(id, updateData);
       
-      // 更新当前活动数据
-      const updatedActivity = updatedActivities.find(act => act.id === id);
-      setActivity(updatedActivity);
-      
-      toast.success('活动信息更新成功！', {
-        position: "top-center",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        progress: undefined,
-        theme: "light",
-      });
-      
-      setIsEditing(false);
-      
-      // 延迟刷新页面以显示最新数据
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      if (response) {
+        // 更新当前活动数据
+        setActivity(response);
+        
+        toast.success('活动信息更新成功！', {
+          position: "top-center",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "light",
+        });
+        
+        setIsEditing(false);
+        
+        // 延迟刷新页面以显示最新数据
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        throw new Error('更新失败');
+      }
       
     } catch (error) {
       console.error('更新活动信息失败:', error);
-      toast.error('更新失败，请重试！');
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('更新失败，请重试！');
+      }
     }
   };
 
@@ -149,28 +182,32 @@ const ActivityDetail = () => {
   useEffect(() => {
     const fetchActivity = async () => {
       try {
-        // 从localStorage读取活动数据
-        const activitiesJson = localStorage.getItem('activities');
-        if (!activitiesJson) {
-          throw new Error('No activities found in localStorage');
-        }
-        const activities = JSON.parse(activitiesJson);
-        const foundActivity = activities.find(act => act.id === id);
+        console.log('Fetching activity with id:', id);
+        const response = await activityApi.getActivityDetail(id);
+        console.log('Activity response:', response);
+        
+        // 后端API直接返回活动详情对象
+        const foundActivity = response;
+        
         if (!foundActivity) {
           throw new Error(`Activity with id ${id} not found`);
         }
+        
+        console.log('Found activity:', foundActivity);
         setActivity(foundActivity);
         setEditForm({
-          name: foundActivity.name,
+          title: foundActivity.title || foundActivity.name,
           description: foundActivity.description,
           startTime: foundActivity.startTime,
           endTime: foundActivity.endTime,
           location: foundActivity.location,
-          capacity: foundActivity.capacity || '',
-          image: foundActivity.image || ''
+          capacity: foundActivity.maxParticipants || foundActivity.capacity || '',
+          image: foundActivity.imageUrl || foundActivity.image || '',
+          status: foundActivity.status || 'open'
         });
       } catch (error) {
         console.error('Failed to fetch activity:', error);
+        setActivity({ error: error.message });
       }
     };
 
@@ -178,13 +215,18 @@ const ActivityDetail = () => {
   }, [id]);
 
   useEffect(() => {
-    // 从localStorage获取评论数据
-    const commentsKey = `comments_${id}`;
-    const commentsData = localStorage.getItem(commentsKey);
-    if (commentsData) {
-      setComments(JSON.parse(commentsData));
+    // 如果活动已加载且包含评论数据，使用后端返回的评论
+    if (activity && activity.comments) {
+      setComments(activity.comments);
+    } else {
+      // 从localStorage获取评论数据作为备选
+      const commentsKey = `comments_${id}`;
+      const commentsData = localStorage.getItem(commentsKey);
+      if (commentsData) {
+        setComments(JSON.parse(commentsData));
+      }
     }
-  }, [id]);
+  }, [id, activity]);
 
   if (!activity) {
     return (
@@ -200,6 +242,21 @@ const ActivityDetail = () => {
       </>
     );
   }
+
+  if (activity.error) {
+    return (
+      <>
+        <GlobalStyle />
+        <div className="min-h-screen h-full flex items-center mt-0 justify-center" style={{ backgroundImage: `url(${activityDetailBg})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed' }}>
+          <div className="bg-white/90 p-6 rounded-2xl max-w-md w-full mx-4">
+            <h2 className="text-2xl font-bold mb-4 text-red-600">加载失败</h2>
+            <p className="text-gray-700 mb-4">无法加载活动详情：{activity.error}</p>
+            <BackButton backPath={userRole === 'admin' ? '/activity-management' : '/activity-registration'} />
+          </div>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <GlobalStyle />
@@ -208,7 +265,7 @@ const ActivityDetail = () => {
           <div className="py-4 mb-4 flex justify-between items-center">
             <div>
               <BackButton backPath={userRole === 'admin' ? '/activity-management' : '/activity-registration'} />
-              <h2 className="text-2xl font-bold">活动详情 - {activity.name}</h2>
+              <h2 className="text-2xl font-bold">活动详情 - {activity.title}</h2>
             </div>
             {isAdmin && (
               <button
@@ -220,9 +277,9 @@ const ActivityDetail = () => {
             )}
           </div>
           <div className="relative h-64 mb-4 rounded-lg overflow-hidden bg-gray-100">
-            {activity.image ? (
+            {activity.imageUrl ? (
               <img
-                src={activity.image}
+                src={activity.imageUrl}
                 alt={`${activity.name}`}
                 className="w-full h-full object-cover transition-opacity duration-300"
                 onLoad={() => setImageLoaded(true)}
@@ -233,12 +290,12 @@ const ActivityDetail = () => {
                 <span>无活动图片</span>
               </div>
             )}
-            {activity.image && !imageLoaded && (
+            {activity.imageUrl && !imageLoaded && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                 <span>图片加载中...</span>
               </div>
             )}
-            {activity.image && imageLoaded === false && (
+            {activity.imageUrl && imageLoaded === false && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                 <img src='/src/assets/placeholder.png' alt='默认图片' className="max-w-[100px]" />
               </div>
@@ -248,235 +305,28 @@ const ActivityDetail = () => {
           <p><strong>开始时间:</strong> {formatDateTime(activity.startTime)}</p>
           <p><strong>结束时间:</strong> {formatDateTime(activity.endTime)}</p>
           <p><strong>活动地点:</strong> {activity.location}</p>
-          <p><strong>报名人数:</strong> {(activity.participants || []).length} / {activity.capacity || '无限制'}</p>
+          <p><strong>报名人数:</strong> {activity.currentParticipants || 0} / {activity.maxParticipants || '无限制'}</p>
+          <p><strong>活动状态:</strong> 
+            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ml-1 ${
+              activity.status === 'open' ? 'bg-green-100 text-green-800' :
+              activity.status === 'full' ? 'bg-red-100 text-red-800' :
+              activity.status === 'closed' ? 'bg-gray-100 text-gray-800' :
+              activity.status === 'cancelled' ? 'bg-orange-100 text-orange-800' :
+              'bg-blue-100 text-blue-800'
+            }`}>
+              {activity.status === 'open' ? '开放报名' :
+               activity.status === 'full' ? '名额已满' :
+               activity.status === 'closed' ? '报名截止' :
+               activity.status === 'cancelled' ? '已取消' :
+               '待发布'}
+            </span>
+          </p>
 
           {/* 报名按钮 - 仅普通用户可见 */}
-          {!isAdmin && (
-            <div className="mt-6">
-              {(() => {
-                const userDataStr = localStorage.getItem('currentUser');
-                if (!userDataStr) return null;
-
-                let userData;
-                try {
-                  userData = JSON.parse(userDataStr);
-                } catch (error) {
-                  console.error('Failed to parse user data:', error);
-                  return null;
-                }
-
-                const hasRegistered = activity.participants && activity.participants.includes(userData.username);
-                const isFull = activity.capacity && (activity.participants || []).length >= activity.capacity;
-
-                // 取消报名功能
-                const handleCancelRegistration = (activityId) => {
-                  // 添加确认弹窗
-                  if (!window.confirm('确定要取消报名吗？')) {
-                    return; // 用户点击取消，不执行取消报名操作
-                  }
-
-                  const activities = JSON.parse(localStorage.getItem('activities') || '[]');
-                  const currentActivity = activities.find(a => a.id === activityId);
-
-                  // 检查是否已报名
-                  if (!currentActivity.participants || !currentActivity.participants.includes(userData.username)) {
-                    toast.info('您尚未报名该活动', {
-                      position: "top-center",
-                      autoClose: 3000,
-                      hideProgressBar: false,
-                      closeOnClick: true,
-                      pauseOnHover: true,
-                      draggable: true,
-                      progress: undefined,
-                      theme: "light",
-                    });
-                    return;
-                  }
-
-                  // 更新活动参与人数
-                  const updatedActivities = activities.map(a => {
-                    if (a.id === activityId) {
-                      return {
-                        ...a,
-                        participants: a.participants.filter(participant => participant !== userData.username)
-                      };
-                    }
-                    return a;
-                  });
-                  localStorage.setItem('activities', JSON.stringify(updatedActivities));
-
-                  // 从用户个人记录中移除报名记录
-                  const userBookingsKey = `bookings_${userData.username}`;
-                  const existingBookings = JSON.parse(localStorage.getItem(userBookingsKey) || '[]');
-                  const updatedBookings = existingBookings.filter(booking => booking.activityId !== activityId);
-                  localStorage.setItem(userBookingsKey, JSON.stringify(updatedBookings));
-
-                  // 显示取消报名成功提示
-                  toast.success('取消报名成功！', {
-                    position: "top-center",
-                    autoClose: 3000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
-                    theme: "light",
-                  });
-
-                  // 延迟刷新页面以显示Toast
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 1500);
-                };
-
-                const handleRegistration = () => {
-                  const activities = JSON.parse(localStorage.getItem('activities') || '[]');
-                  const currentActivity = activities.find(a => a.id === id);
-
-                  if (currentActivity.participants && currentActivity.participants.includes(userData.username)) {
-                    toast.success('您已报名该活动', {
-                      position: "top-center",
-                      autoClose: 3000,
-                      hideProgressBar: false,
-                      closeOnClick: true,
-                      pauseOnHover: true,
-                      draggable: true,
-                      progress: undefined,
-                      theme: "light",
-                    });
-                    return;
-                  }
-
-                  if (currentActivity.participants && currentActivity.capacity && currentActivity.participants.length >= currentActivity.capacity) {
-                    toast.success('该活动已达报名人数上限', {
-                      position: "top-center",
-                      autoClose: 3000,
-                      hideProgressBar: false,
-                      closeOnClick: true,
-                      pauseOnHover: true,
-                      draggable: true,
-                      progress: undefined,
-                      theme: "light",
-                    });
-                    return;
-                  }
-
-                  // 更新活动参与人数
-                  const updatedActivities = activities.map(a => {
-                    if (a.id === id) {
-                      a.participants = [...(a.participants || []), userData.username];
-                    }
-                    return a;
-                  });
-                  localStorage.setItem('activities', JSON.stringify(updatedActivities));
-
-                  // 添加报名记录
-                  const bookingRecord = {
-                    activityId: id,
-                    activityName: activity.name,
-                    registrationTime: new Date().toISOString(),
-                    startTime: activity.startTime,
-                    endTime: activity.endTime,
-                    location: activity.location,
-                    status: 'confirmed'
-                  };
-
-                  const userBookingsKey = `bookings_${userData.username}`;
-                  const existingBookings = JSON.parse(localStorage.getItem(userBookingsKey) || '[]');
-                  existingBookings.push(bookingRecord);
-                  localStorage.setItem(userBookingsKey, JSON.stringify(existingBookings));
-
-                  // 立即显示报名成功提示
-                  toast.success('报名成功！', {
-                    position: "top-center",
-                    autoClose: 3000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
-                    theme: "light",
-                  });
-
-                  // 延迟刷新页面以显示Toast
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 1500);
-                };
-
-                const buttonText = hasRegistered ? '取消报名' : (isFull ? '人数已满' : '立即报名');
-                const buttonClass = hasRegistered
-                  ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                  : isFull
-                  ? 'bg-gray-400 cursor-not-allowed text-gray-200'
-                  : 'bg-green-600 hover:bg-green-700 text-white';
-
-                const handleClick = hasRegistered
-                  ? () => handleCancelRegistration(id)
-                  : handleRegistration;
-
-                return (
-                  <button
-                    onClick={handleClick}
-                    className={buttonClass}
-                  >
-                    {buttonText}
-                  </button>
-                );
-              })()}
-            </div>
-          )}
+          {!isAdmin && <RegistrationButton activity={activity} activityId={id} />}
 
           {/* 活动评论 */}
-          <div className="mt-8">
-            <h3 className="text-xl font-bold mb-4">活动评论</h3>
-
-            {comments.length === 0 ? (
-              <p className="text-gray-500">暂无评论</p>
-            ) : (
-              <div className="space-y-4">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="p-4 border border-gray-200 rounded-lg relative">
-                    {/* 修改此处，将删除按钮和日期放在 flex 容器中 */}
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <span className="font-semibold">{comment.username}</span>
-                        <div className="flex items-center mt-1">
-                          {[...Array(5)].map((_, i) => (
-                            <span
-                              key={i}
-                              className={`text-lg ${i < comment.rating ? 'text-yellow-400' : 'text-gray-300'}`}
-                            >
-                              ★
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end"> {/* 使用 flex-col 和 items-end 来垂直堆叠并右对齐 */}
-                        <span className="text-sm text-gray-500 mb-1"> {/* 添加 mb-1 给予一些间距 */}
-                          {new Date(comment.createdAt).toLocaleDateString('zh-CN', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </span>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            className="text-red-500 hover:text-red-700 text-sm"
-                            title="删除评论"
-                          >
-                            删除
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-gray-700">{comment.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ActivityComment activityId={id} />
         </div>
       </div>
       {isEditing && (
@@ -489,8 +339,8 @@ const ActivityDetail = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">活动名称</label>
                 <input
                   type="text"
-                  name="name"
-                  value={editForm.name}
+                  name="title"
+                  value={editForm.title}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -523,7 +373,7 @@ const ActivityDetail = () => {
                 <input
                   type="datetime-local"
                   name="startTime"
-                  value={editForm.startTime ? new Date(editForm.startTime).toISOString().slice(0, 16) : ''}
+                  value={formatDateTimeForInput(editForm.startTime)}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -534,7 +384,7 @@ const ActivityDetail = () => {
                 <input
                   type="datetime-local"
                   name="endTime"
-                  value={editForm.endTime ? new Date(editForm.endTime).toISOString().slice(0, 16) : ''}
+                  value={formatDateTimeForInput(editForm.endTime)}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -563,6 +413,21 @@ const ActivityDetail = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">活动状态</label>
+                <select
+                  name="status"
+                  value={editForm.status}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="open">开放报名</option>
+                  <option value="full">名额已满</option>
+                  <option value="closed">报名截止</option>
+                  <option value="cancelled">已取消</option>
+                </select>
+              </div>
             </div>
             
             <div className="flex justify-end space-x-3 mt-6">
@@ -585,6 +450,252 @@ const ActivityDetail = () => {
       
       <ToastContainer position="top-center" />
     </>
+  );
+};
+
+const RegistrationButton = ({ activity, activityId }) => {
+  const [hasRegistered, setHasRegistered] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkRegistrationStatus = async () => {
+      try {
+        // 获取当前用户信息
+        const user = await userApi.getCurrentUser();
+        if (!user) {
+          setCurrentUser(null);
+          return;
+        }
+        
+        setCurrentUser(user);
+        
+        // 获取报名记录
+        const response = await registrationApi.getMyRegistrations();
+        const registrations = Array.isArray(response) ? response : (response.registrations || response.data || []);
+        const isRegistered = registrations.some(reg => 
+          String(reg.activityId) === String(activityId) || 
+          String(reg.activity?.id) === String(activityId)
+        );
+        setHasRegistered(isRegistered);
+      } catch (error) {
+        console.error('检查报名状态失败:', error);
+        if (error.response?.status === 401) {
+          // 用户未登录或登录过期
+          setCurrentUser(null);
+        }
+      }
+    };
+    
+    checkRegistrationStatus();
+  }, [activityId]);
+
+  const handleCancelRegistration = async () => {
+    try {
+      if (!currentUser) {
+        toast.error('请先登录！');
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+        return;
+      }
+
+      if (!window.confirm('确定要取消报名吗？')) {
+        return;
+      }
+
+      const response = await registrationApi.getMyRegistrations();
+      const registrations = Array.isArray(response) ? response : (response.registrations || response.data || []);
+      const userRegistration = registrations.find(reg => 
+        String(reg.activityId) === String(activityId) || 
+        String(reg.activity?.id) === String(activityId)
+      );
+      
+      if (!userRegistration) {
+        toast.info('您尚未报名该活动', {
+          position: "top-center",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "light",
+        });
+        return;
+      }
+
+      await registrationApi.deleteRegistration(userRegistration.id);
+
+      toast.success('取消报名成功！', {
+        position: "top-center",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "light",
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error('取消报名失败:', error);
+      if (error.response?.status === 401) {
+        setCurrentUser(null);
+        toast.error('登录已过期，请重新登录！');
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } else {
+        toast.error('取消报名失败，请重试！');
+      }
+    }
+  };
+
+  const handleRegistration = async () => {
+    try {
+      // 先检查当前用户是否已登录
+      if (!currentUser) {
+        toast.error('请先登录后再报名！');
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+        return;
+      }
+
+      const response = await registrationApi.getMyRegistrations();
+      const registrations = Array.isArray(response) ? response : (response.registrations || response.data || []);
+      const existingRegistration = registrations.find(reg => 
+        String(reg.activityId) === String(activityId) || 
+        String(reg.activity?.id) === String(activityId)
+      );
+      
+      if (existingRegistration) {
+        toast.info('您已报名该活动', {
+          position: "top-center",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "light",
+        });
+        return;
+      }
+
+      if (activity.currentParticipants >= activity.maxParticipants) {
+        toast.info('该活动已达报名人数上限', {
+          position: "top-center",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "light",
+        });
+        return;
+      }
+
+      // 检查活动状态
+      if (activity.status !== 'open') {
+        let statusMessage = '';
+        switch(activity.status) {
+          case 'closed':
+            statusMessage = '该活动报名已截止，无法报名';
+            break;
+          case 'cancelled':
+            statusMessage = '该活动已取消，无法报名';
+            break;
+          case 'full':
+            statusMessage = '该活动名额已满，无法报名';
+            break;
+          default:
+            statusMessage = '该活动未开放报名';
+        }
+        toast.error(statusMessage, {
+          position: "top-center",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "light",
+        });
+        return;
+      }
+
+      await registrationApi.createRegistration({
+        activityId: activityId
+      });
+
+      toast.success('报名成功！', {
+        position: "top-center",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "light",
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error('报名失败:', error);
+      if (error.response?.status === 401) {
+        // 清除用户信息并跳转到登录
+        setCurrentUser(null);
+        toast.error('登录已过期，请重新登录！');
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } else if (error.response?.status === 409) {
+        toast.error('您已报名该活动！');
+      } else {
+        toast.error('报名失败，请重试！');
+      }
+    }
+  };
+
+  if (!currentUser) return null;
+
+  const isFull = activity.maxParticipants && (activity.currentParticipants || 0) >= activity.maxParticipants;
+  const isNotOpen = activity.status !== 'open';
+  const buttonText = hasRegistered ? '取消报名' : 
+    (isNotOpen ? {
+      'closed': '报名截止',
+      'cancelled': '活动取消',
+      'full': '人数已满',
+      'draft': '待发布'
+    }[activity.status] || '未开放' : 
+    (isFull ? '人数已满' : '立即报名'));
+  
+  const buttonClass = hasRegistered
+    ? 'bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded-md transition-colors'
+    : (isFull || isNotOpen)
+    ? 'bg-gray-400 cursor-not-allowed text-gray-200 px-6 py-2 rounded-md'
+    : 'bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md transition-colors';
+
+  const handleClick = hasRegistered ? handleCancelRegistration : handleRegistration;
+
+  return (
+    <div className="mt-6">
+      <button
+        onClick={handleClick}
+        className={buttonClass}
+        disabled={!hasRegistered && (isFull || isNotOpen)}
+      >
+        {buttonText}
+      </button>
+    </div>
   );
 };
 

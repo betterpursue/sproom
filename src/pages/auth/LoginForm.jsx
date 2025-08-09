@@ -4,11 +4,12 @@ import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import bgImage from '/src/assets/background.png'  // 根据你的实际图片名称调整
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { userApi } from '../../services/api';
 
 export default function LoginForm() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
-    username: '',
+    usernameOrEmail: '',
     password: '',
     rememberMe: false
   });
@@ -27,52 +28,45 @@ export default function LoginForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.username || !formData.password) {
-      setError('请填写用户名和密码');
-      toast.error('请填写用户名和密码', { autoClose: 3000 });
+    if (!formData.usernameOrEmail || !formData.password) {
+      setError('请填写用户名或邮箱和密码');
+      toast.error('请填写用户名或邮箱和密码', { autoClose: 3000 });
       return;
     }
 
     setIsLoading(true);
     try {
-      // 获取用户数据
-      const users = JSON.parse(localStorage.getItem('users') || '{}');
-      const user = users[formData.username];
+      const response = await userApi.login({
+        usernameOrEmail: formData.usernameOrEmail.trim(),
+        password: formData.password.trim()
+      });
 
-      if (user && user.password === formData.password) {
-        // 登录成功
-        // 存储用户信息
-        const userInfo = {
-          username: formData.username,
-          role: user.role
-        };
-        localStorage.setItem('currentUser', JSON.stringify(userInfo));
-        localStorage.setItem('userRole', user.role);
-        
-        if (formData.rememberMe) {
-          localStorage.setItem('rememberedUser', formData.username);
-        } else {
-          localStorage.removeItem('rememberedUser');
-        }
-        
-        // 登录成功提示
-        toast.success('登录成功！', { autoClose: 3000 });
-        
-        // 3秒后根据角色跳转到不同页面
-        setTimeout(() => {
-          if (user.role === 'admin') {
-            navigate('/activity-management');
-          } else {
-            navigate('/activity-registration');
-          }
-        }, 3000);
+      // 登录成功 - 修正：响应拦截器已返回data对象
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('currentUser', response.user.username);
+      localStorage.setItem('userRole', response.user.role);
+
+      if (formData.rememberMe) {
+        localStorage.setItem('rememberedUser', formData.usernameOrEmail);
       } else {
-        // 登录失败
-        setError('用户名或密码不正确');
+        localStorage.removeItem('rememberedUser');
       }
-    } catch {
-      setError('登录失败，请重试');
-      toast.error('登录失败，请重试', { autoClose: 3000 });
+
+      // 登录成功提示
+      toast.success('登录成功！', { autoClose: 3000 });
+
+      // 3秒后根据角色跳转到不同页面
+      setTimeout(() => {
+        if (response.user.role === 'admin') {
+          navigate('/activity-management');
+        } else {
+          navigate('/activity-registration');
+        }
+      }, 3000);
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || '用户名或密码不正确';
+      setError(errorMessage);
+      toast.error(errorMessage, { autoClose: 3000 });
     } finally {
       setIsLoading(false);
     }
@@ -111,12 +105,12 @@ export default function LoginForm() {
               <label htmlFor="username" className="sr-only">用户名</label>
               <input
                 id="username"
-                name="username"
+                name="usernameOrEmail"
                 type="text"
                 required
                 className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="用户名"
-                value={formData.username}
+                placeholder="用户名或邮箱"
+                value={formData.usernameOrEmail}
                 onChange={handleInputChange}
               />
             </div>
